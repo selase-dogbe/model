@@ -1,0 +1,133 @@
+// Envoy Route data model
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DISPATCHER
+  DRIVER
+}
+
+enum DriverStatus {
+  OFFLINE
+  ACTIVE
+  ON_BREAK
+}
+
+enum OrderStatus {
+  PENDING
+  ASSIGNED
+  IN_TRANSIT
+  DELIVERED
+  CANCELLED
+}
+
+enum RouteStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum StopStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         Role     @default(DISPATCHER)
+  createdAt    DateTime @default(now())
+
+  driver Driver?
+}
+
+model Driver {
+  id            String       @id @default(cuid())
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String       @unique
+  phone         String?
+  vehicle       String?
+  status        DriverStatus @default(OFFLINE)
+  lastLat       Float?
+  lastLng       Float?
+  lastLocatedAt DateTime?
+
+  routes    Route[]
+  locations LocationPing[]
+
+  createdAt DateTime @default(now())
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+  address   String
+  lat       Float?
+  lng       Float?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  orders Order[]
+}
+
+model Order {
+  id          String      @id @default(cuid())
+  customer    Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customerId  String
+  description String
+  weightKg    Float?
+  address     String
+  lat         Float?
+  lng         Float?
+  status      OrderStatus @default(PENDING)
+  createdAt   DateTime    @default(now())
+
+  stop Stop?
+}
+
+model Route {
+  id        String      @id @default(cuid())
+  driver    Driver      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId  String
+  date      DateTime
+  status    RouteStatus @default(PLANNED)
+  createdAt DateTime    @default(now())
+
+  stops Stop[]
+}
+
+model Stop {
+  id          String     @id @default(cuid())
+  route       Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  routeId     String
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  orderId     String     @unique
+  sequence    Int
+  status      StopStatus @default(PENDING)
+  completedAt DateTime?
+  notes       String?
+}
+
+model LocationPing {
+  id         String   @id @default(cuid())
+  driver     Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  driverId   String
+  lat        Float
+  lng        Float
+  recordedAt DateTime @default(now())
+
+  @@index([driverId, recordedAt])
+}
